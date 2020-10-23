@@ -1,0 +1,89 @@
+%The normalization and standardization, in case of the missing of the raw
+%data, I choose to ding, dealing with missing data, feature stan-dardization 
+load('D_Train.mat') 
+load('D_Test.mat') 
+feature_train=Train{:,2:8};
+feature_test=Test{:,2:8};
+L=length(feature_train);
+means=sum(feature_train)/L;
+std=sqrt(sum((feature_train-means).^2))/L;
+nor_train=(feature_train-means)./std;
+nor_test=(feature_test-means)./std;
+%add feature
+newfeature_train=zeros(1600,36);
+newfeature_test=zeros(400,36);
+newfeature_train(:,1)=1;
+newfeature_test(:,1)=1;
+newfeature_train(:,2:8)=nor_train;
+newfeature_test(:,2:8)=nor_test;
+%normalization and add feature
+k=9;
+while k<37
+for i=1:7
+    for j=i:7
+        newfeature_train(:,k)=nor_train(:,i).*nor_train(:,j);
+        newfeature_test(:,k)=nor_test(:,i).*nor_test(:,j);
+        k=k+1;
+    end
+end
+end
+newfeature_trainx=zeros(1600,36);
+newfeature_testx=zeros(400,36);
+newfeature_trainx(:,1)=1;
+newfeature_testx(:,1)=1;
+newfeature_trainx(:,2:8)=feature_train;
+newfeature_testx(:,2:8)=feature_test;
+% raw data add feature
+k=9;
+while k<37
+for i=1:7
+    for j=i:7
+        newfeature_trainx(:,k)=feature_train(:,i).*feature_train(:,j);
+        newfeature_testx(:,k)=feature_test(:,i).*feature_test(:,j);
+        k=k+1;
+    end
+end
+end
+feature_train=newfeature_trainx;
+feature_test=newfeature_testx;
+nor_train=newfeature_train;
+nor_test=newfeature_test;
+%seperate label and feature
+label_train=Train{:,1};
+label_test=Test{:,1};
+data_train=[label_train feature_train];
+data_test=[label_test feature_test];
+%creat dataset
+Train_dataset=prdataset(nor_train,label_train);   
+Test_dataset=prdataset(nor_test,label_test);
+Trainx=prdataset(feature_train,label_train);
+Testx=prdataset(feature_test,label_test);
+data=[label_train nor_train];
+dataTest=[label_test nor_test];
+%FLD DATASET The Minimum least square classifier with modified feature dimension
+MLSmapping=fisherm(Train_dataset,3);
+TestFLD = prmap(Test_dataset,MLSmapping);
+TrainFLD = prmap(Train_dataset,MLSmapping);
+MLSmapping=fisherm(Trainx,3);
+TestFLDx = prmap(Testx,MLSmapping);
+TrainFLDx = prmap(Trainx,MLSmapping);
+%Firstly, prdataset is a function in prtools5, which could create a dataset
+%each row is a data point with feature value, each column is a feature.
+%I want to get the classifier simply use the given function in prtools5
+%The Minimum least square linear classifier
+Classifier_MLS=fisherc(Train_dataset);
+Classifier_MLSx=fisherc(Trainx);
+%Check the error rate 
+E_MLS=testc(Test_dataset*Classifier_MLS);
+E_MLSx=testc(Testx*Classifier_MLSx);
+%For mls fld
+Classifier_MLSFLD=fisherc(TrainFLD);
+E_MLSFLD=testc(TestFLD*Classifier_MLSFLD);
+Classifier_MLSFLDx=fisherc(TrainFLDx);
+E_MLSFLDx=testc(TestFLDx*Classifier_MLSFLDx);
+E_MLS
+E_MLSx
+E_MLSFLD
+E_MLSFLDx
+predicted=labeld(nor_test,Classifier_MLS);
+confusion_matrix=confusionmat(label_test,predicted);
