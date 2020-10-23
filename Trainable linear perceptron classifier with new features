@@ -1,0 +1,139 @@
+%The normalization and standardization, in case of the missing of the raw
+%data, I choose to ding, dealing with missing data, feature stan-dardization 
+load('D_Train.mat') 
+load('D_Test.mat') 
+feature_train=Train{:,2:8};
+feature_test=Test{:,2:8};
+L=length(feature_train);
+means=sum(feature_train)/L;
+std=sqrt(sum((feature_train-means).^2))/L;
+nor_train=(feature_train-means)./std;
+nor_test=(feature_test-means)./std;
+%add feature
+newfeature_train=zeros(1600,36);
+newfeature_test=zeros(400,36);
+newfeature_train(:,1)=1;
+newfeature_test(:,1)=1;
+newfeature_train(:,2:8)=nor_train;
+newfeature_test(:,2:8)=nor_test;
+%normalization and add feature
+k=9;
+while k<37
+for i=1:7
+    for j=i:7
+        newfeature_train(:,k)=nor_train(:,i).*nor_train(:,j);
+        newfeature_test(:,k)=nor_test(:,i).*nor_test(:,j);
+        k=k+1;
+    end
+end
+end
+newfeature_trainx=zeros(1600,36);
+newfeature_testx=zeros(400,36);
+newfeature_trainx(:,1)=1;
+newfeature_testx(:,1)=1;
+newfeature_trainx(:,2:8)=feature_train;
+newfeature_testx(:,2:8)=feature_test;
+% raw data add feature
+k=9;
+while k<37
+for i=1:7
+    for j=i:7
+        newfeature_trainx(:,k)=feature_train(:,i).*feature_train(:,j);
+        newfeature_testx(:,k)=feature_test(:,i).*feature_test(:,j);
+        k=k+1;
+    end
+end
+end
+feature_train=newfeature_trainx;
+feature_test=newfeature_testx;
+nor_train=newfeature_train;
+nor_test=newfeature_test;
+%seperate label and feature
+label_train=Train{:,1};
+label_test=Test{:,1};
+data_train=[label_train feature_train];
+data_test=[label_test feature_test];
+%creat dataset
+Train_dataset=prdataset(nor_train,label_train);   
+Test_dataset=prdataset(nor_test,label_test);
+Trainx=prdataset(feature_train,label_train);
+Testx=prdataset(feature_test,label_test);
+data=[label_train nor_train];
+dataTest=[label_test nor_test];
+%FLD DATASET The Minimum least square classifier with modified feature dimension
+MLSmapping=fisherm(Train_dataset,3);
+TestFLD = prmap(Test_dataset,MLSmapping);
+TrainFLD = prmap(Train_dataset,MLSmapping);
+MLSmapping=fisherm(Trainx,3);
+TestFLDx = prmap(Testx,MLSmapping);
+TrainFLDx = prmap(Trainx,MLSmapping);
+%perlc
+Classifier_perlc=perlc(Train_dataset);
+Classifier_perlcFLD=perlc(TrainFLD);
+E_perlc=testc(Test_dataset*Classifier_perlc);
+E_perlcFLD=testc(TestFLD*Classifier_perlcFLD);
+%cross validation
+Etolx=0;
+indices=crossvalind('Kfold',data_train(1:1600,8),10);
+for k=1:10
+    test=(indices==k);
+    train=~test;
+    train_data=data(train,:);
+    test_data=data(test,:);
+    ftrain=train_data(:,2:8);
+    ftest=test_data(:,2:8);
+    ltrain=train_data(:,1);
+    ltest=test_data(:,1);
+    Train_dataset1x=prdataset(ftrain,ltrain);
+    Test_dataset1x=prdataset(ftest, ltest);
+    Classifier_perlc1x=perlc(Train_dataset1x);
+    E_perlcx=testc(Test_dataset1x*Classifier_perlc1x);
+    Etolx=Etolx+E_perlcx;
+end
+Eavgx=Etolx/10;
+Etol=0;
+indices=crossvalind('Kfold',data(1:1600,8),10);
+for k=1:10
+    test=(indices==k);
+    train=~test;
+    train_data=data(train,:);
+    test_data=data(test,:);
+    ftrain=train_data(:,2:8);
+    ftest=test_data(:,2:8);
+    ltrain=train_data(:,1);
+    ltest=test_data(:,1);
+    Train_dataset1=prdataset(ftrain,ltrain);
+    Test_dataset1=prdataset(ftest, ltest);
+    Classifier_perlc1=perlc(Train_dataset1);
+    E_perlc=testc(Test_dataset1*Classifier_perlc1);
+    Etol=Etol+E_perlc;
+end
+Eavg=Etol/10;
+indices=crossvalind('Kfold',data(1:1600,8),10);
+Etol1=0;
+for k=1:10
+    test=(indices==k);
+    train=~test;
+    train_data=data(train,:);
+    test_data=data(test,:);
+    ftrain=train_data(:,2:8);
+    ftest=test_data(:,2:8);
+    ltrain=train_data(:,1);
+    ltest=test_data(:,1);
+    Train_dataset1=prdataset(ftrain,ltrain);
+    Test_dataset1=prdataset(ftest, ltest);
+    MLSmapping1=fisherm(Train_dataset1,3);
+    TestFLD1 = prmap(Test_dataset1,MLSmapping1);
+    TrainFLD1 = prmap(Train_dataset1,MLSmapping1);
+    Classifier_perlc2=perlc(TrainFLD1);
+    E_perlc1=testc(TestFLD1*Classifier_perlc2);
+    Etol1=Etol1+E_perlc1;
+end
+E_perlc
+E_perlcFLD
+Eavg1=Etol1/10;
+Eavgx
+Eavg
+Eavg1
+predicted=labeld(nor_test,Classifier_perlc);
+confusion_matrix=confusionmat(label_test,predicted);
