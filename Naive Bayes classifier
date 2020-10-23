@@ -1,0 +1,105 @@
+%The normalization and standardization, in case of the missing of the raw
+%data, I choose to ding, dealing with missing data, feature stan-dardization 
+load('D_Train.mat') 
+load('D_Test.mat') 
+data_train=Train{:,1:8};
+data_test=Test{:,1:8};
+feature_train=Train{:,2:8};
+feature_test=Test{:,2:8};
+L=length(feature_train);
+means=sum(feature_train)/L;
+std=sqrt(sum((feature_train-means).^2))/L;
+nor_train=(feature_train-means)./std;
+nor_test=(feature_test-means)./std;
+%seperate label and feature
+label_train=Train{:,1};
+label_test=Test{:,1};
+%creat dataset
+Train_dataset=prdataset(nor_train,label_train);   
+Test_dataset=prdataset(nor_test,label_test);
+Trainx=prdataset(feature_train,label_train);
+Testx=prdataset(feature_test,label_test);
+data=[label_train nor_train];
+dataTest=[label_test nor_test];
+%FLD DATASET The Minimum least square classifier with modified feature dimension
+MLSmapping=fisherm(Train_dataset,3);
+TestFLD = prmap(Test_dataset,MLSmapping);
+TrainFLD = prmap(Train_dataset,MLSmapping);
+MLSmapping=fisherm(Trainx,3);
+TestFLDx = prmap(Testx,MLSmapping);
+TrainFLDx = prmap(Trainx,MLSmapping);
+%Naive Baye
+NB = naivebc(Train_dataset,10);
+E_nb=testc(Test_dataset*NB);
+NBFLD = naivebc(TrainFLD,10);
+E_nbFLD=testc(TestFLD*NBFLD);
+%For cross validation
+Eminx=1;
+indices=crossvalind('Kfold',data_train(1:1600,8),10);
+for k=1:10
+    test=(indices==k);
+    train=~test;
+    train_data=data(train,:);
+    test_data=data(test,:);
+    ftrain=train_data(:,2:8);
+    ftest=test_data(:,2:8);
+    ltrain=train_data(:,1);
+    ltest=test_data(:,1);
+    Train_dataset1x=prdataset(ftrain,ltrain);
+    Test_dataset1x=prdataset(ftest, ltest);
+    NB1 = naivebc( Train_dataset1x,2*k);
+    Ex=testc(Test_dataset1x*NB1);
+    if Ex<Eminx
+        Eminx=Ex;
+        kminx=k;
+    end
+end
+Emin=1;
+indices=crossvalind('Kfold',data(1:1600,8),10);
+for k=1:10
+    test=(indices==k);
+    train=~test;
+    train_data=data(train,:);
+    test_data=data(test,:);
+    ftrain=train_data(:,2:8);
+    ftest=test_data(:,2:8);
+    ltrain=train_data(:,1);
+    ltest=test_data(:,1);
+    Train_dataset1=prdataset(ftrain,ltrain);
+    Test_dataset1=prdataset(ftest, ltest);
+    NB2 = naivebc( Train_dataset1,2*k);
+    E=testc(Test_dataset1*NB2);
+    if E<Emin
+        Emin=E;
+        kmin=k;
+    end
+end
+%For cross validation
+EminFLD=1;
+indices=crossvalind('Kfold',data(1:1600,8),10);
+for k=1:10
+    test=(indices==k);
+    train=~test;
+    train_data=data(train,:);
+    test_data=data(test,:);
+    ftrain=train_data(:,2:8);
+    ftest=test_data(:,2:8);
+    ltrain=train_data(:,1);
+    ltest=test_data(:,1);
+    Train_dataset1=prdataset(ftrain,ltrain);
+    Test_dataset1=prdataset(ftest, ltest);
+    MLSmapping1=fisherm(Train_dataset1,3);
+    TestFLD1 = prmap(Test_dataset1,MLSmapping1);
+    TrainFLD1 = prmap(Train_dataset1,MLSmapping1);
+    NB3 = naivebc(TrainFLD1,2*k);
+    E=testc(TestFLD1*NB3);
+    if E<EminFLD
+        EminFLD=E;
+        kminFLD=k;
+    end
+end
+E_nb
+E_nbFLD
+Emin
+EminFLD
+Eminx
