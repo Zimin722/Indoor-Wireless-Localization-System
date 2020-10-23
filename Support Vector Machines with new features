@@ -1,0 +1,223 @@
+%The normalization and standardization, in case of the missing of the raw
+%data, I choose to ding, dealing with missing data, feature stan-dardization 
+load('D_Train.mat') 
+load('D_Test.mat') 
+feature_train=Train{:,2:8};
+feature_test=Test{:,2:8};
+L=length(feature_train);
+means=sum(feature_train)/L;
+std=sqrt(sum((feature_train-means).^2))/L;
+nor_train=(feature_train-means)./std;
+nor_test=(feature_test-means)./std;
+%add feature
+newfeature_train=zeros(1600,36);
+newfeature_test=zeros(400,36);
+newfeature_train(:,1)=1;
+newfeature_test(:,1)=1;
+newfeature_train(:,2:8)=nor_train;
+newfeature_test(:,2:8)=nor_test;
+%normalization and add feature
+k=9;
+while k<37
+for i=1:7
+    for j=i:7
+        newfeature_train(:,k)=nor_train(:,i).*nor_train(:,j);
+        newfeature_test(:,k)=nor_test(:,i).*nor_test(:,j);
+        k=k+1;
+    end
+end
+end
+newfeature_trainx=zeros(1600,36);
+newfeature_testx=zeros(400,36);
+newfeature_trainx(:,1)=1;
+newfeature_testx(:,1)=1;
+newfeature_trainx(:,2:8)=feature_train;
+newfeature_testx(:,2:8)=feature_test;
+% raw data add feature
+k=9;
+while k<37
+for i=1:7
+    for j=i:7
+        newfeature_trainx(:,k)=feature_train(:,i).*feature_train(:,j);
+        newfeature_testx(:,k)=feature_test(:,i).*feature_test(:,j);
+        k=k+1;
+    end
+end
+end
+feature_train=newfeature_trainx;
+feature_test=newfeature_testx;
+nor_train=newfeature_train;
+nor_test=newfeature_test;
+%seperate label and feature
+label_train=Train{:,1};
+label_test=Test{:,1};
+data_train=[label_train feature_train];
+data_test=[label_test feature_test];
+%creat dataset
+Train_dataset=prdataset(nor_train,label_train);   
+Test_dataset=prdataset(nor_test,label_test);
+Trainx=prdataset(feature_train,label_train);
+Testx=prdataset(feature_test,label_test);
+data=[label_train nor_train];
+dataTest=[label_test nor_test];
+%FLD DATASET The Minimum least square classifier with modified feature dimension
+MLSmapping=fisherm(Train_dataset,3);
+TestFLD = prmap(Test_dataset,MLSmapping);
+TrainFLD = prmap(Train_dataset,MLSmapping);
+MLSmapping=fisherm(Trainx,3);
+TestFLDx = prmap(Testx,MLSmapping);
+TrainFLDx = prmap(Trainx,MLSmapping);
+%SVM
+ACC=zeros(5, 5, 5); 
+DEV=zeros(5, 5, 5); 
+best_gamma=zeros(5,1);
+best_C=zeros(5,1);
+best_ACC=zeros(5,1);
+best_DEV=zeros(5,1);
+gamma=logspace(-3,3);
+C=logspace(-3,3);
+%p is the number of iterations
+for p=1:5
+    for i=1:5
+        for j=1:5
+            cmd = ['-t 0 -c ', num2str(C(i)), ' -g ', num2str(gamma(j))];
+            [accuracy, average]=cva(nor_train, label_train, cmd);
+            ACC(i,j,p)=average;
+            ss=0;
+            for k=1:5      
+                ss= ss+(accuracy(k)^2-average^2);
+            end
+            DEV(i,j,p)=sqrt(ss./5);
+        end
+    end
+    maxACC=max(max(ACC(:,:,p)));
+    tempDEV=DEV(:,:,p);
+    min_dev=min(tempDEV(ACC(:,:,p)>0.99*maxACC));
+    [row, column]=find((DEV(:,:,p)==min_dev) & (ACC(:,:,p)>0.99*maxACC));
+    best_gamma(p)=gamma(column(1));
+    best_C(p)=C(row(1));
+    best_ACC(p)=ACC(column(1),column(1),p);
+    best_DEV(p)=DEV(row(1),column(1),p);
+end
+for i=1:5
+    for j=1:5
+       meanACC(i,j)=sum(ACC(i,j,:))./5; 
+       meanDEV(i,j)=sum(DEV(i,j,:))./5;
+    end
+end
+max_meanACC=max(meanACC(:)); 
+min_dev_5=min(meanDEV(meanACC>0.99*max_meanACC));
+[row_5, column_5]=find((meanDEV==min_dev_5) & (meanACC>0.99*max_meanACC));
+best_5_gamma=gamma(column_5); 
+best_5_C=C(row_5); 
+best_5_ACC=ACC(row_5,column_5); 
+best_5_DEV=DEV(row_5,column_5); 
+mean_cvaccuracy=meanACC(row_5, column_5); 
+mean_cvstddev=meanDEV(row_5, column_5); 
+cmd = ['-t 0 -c ', num2str(best_5_C), ' -g ', num2str(best_5_gamma)]; 
+M1= svmtrain(label_train, nor_train, cmd); 
+[~,a,~]=svmpredict(label_test,nor_test,M1);  
+a
+%SVM
+ACC=zeros(5, 5, 5); 
+DEV=zeros(5, 5, 5); 
+best_gamma=zeros(5,1);
+best_C=zeros(5,1);
+best_ACC=zeros(5,1);
+best_DEV=zeros(5,1);
+gamma=logspace(-3,3);
+C=logspace(-3,3);
+%p is the number of iterations
+for p=1:5
+    for i=1:5
+        for j=1:5
+            cmd = ['-t 1 -c ', num2str(C(i)), ' -g ', num2str(gamma(j))];
+            [accuracy, average]=cva(nor_train, label_train, cmd);
+            ACC(i,j,p)=average;
+            ss=0;
+            for k=1:5      
+                ss= ss+(accuracy(k)^2-average^2);
+            end
+            DEV(i,j,p)=sqrt(ss./5);
+        end
+    end
+    maxACC=max(max(ACC(:,:,p)));
+    tempDEV=DEV(:,:,p);
+    min_dev=min(tempDEV(ACC(:,:,p)>0.99*maxACC));
+    [row, column]=find((DEV(:,:,p)==min_dev) & (ACC(:,:,p)>0.99*maxACC));
+    best_gamma(p)=gamma(column(1));
+    best_C(p)=C(row(1));
+    best_ACC(p)=ACC(column(1),column(1),p);
+    best_DEV(p)=DEV(row(1),column(1),p);
+end
+for i=1:5
+    for j=1:5
+       meanACC(i,j)=sum(ACC(i,j,:))./5; 
+       meanDEV(i,j)=sum(DEV(i,j,:))./5;
+    end
+end
+max_meanACC=max(meanACC(:)); 
+min_dev_5=min(meanDEV(meanACC>0.99*max_meanACC));
+[row_5, column_5]=find((meanDEV==min_dev_5) & (meanACC>0.99*max_meanACC));
+best_5_gamma=gamma(column_5); 
+best_5_C=C(row_5); 
+best_5_ACC=ACC(row_5,column_5); 
+best_5_DEV=DEV(row_5,column_5); 
+mean_cvaccuracy=meanACC(row_5, column_5); 
+mean_cvstddev=meanDEV(row_5, column_5); 
+cmd = ['-t 1 -c ', num2str(best_5_C), ' -g ', num2str(best_5_gamma)]; 
+M2= svmtrain(label_train, nor_train, cmd); 
+[~,b,~]=svmpredict(label_test,nor_test,M2); 
+%SVM
+ACC=zeros(5, 5, 5); 
+DEV=zeros(5, 5, 5); 
+best_gamma=zeros(5,1);
+best_C=zeros(5,1);
+best_ACC=zeros(5,1);
+best_DEV=zeros(5,1);
+gamma=logspace(-3,3);
+C=logspace(-3,3);
+%p is the number of iterations
+for p=1:5
+    for i=1:5
+        for j=1:5
+            cmd = ['-t 1 -c ', num2str(C(i)), ' -g ', num2str(gamma(j))];
+            [accuracy, average]=cva(feature_train, label_train, cmd);
+            ACC(i,j,p)=average;
+            ss=0;
+            for k=1:5      
+                ss= ss+(accuracy(k)^2-average^2);
+            end
+            DEV(i,j,p)=sqrt(ss./5);
+        end
+    end
+    maxACC=max(max(ACC(:,:,p)));
+    tempDEV=DEV(:,:,p);
+    min_dev=min(tempDEV(ACC(:,:,p)>0.99*maxACC));
+    [row, column]=find((DEV(:,:,p)==min_dev) & (ACC(:,:,p)>0.99*maxACC));
+    best_gamma(p)=gamma(column(1));
+    best_C(p)=C(row(1));
+    best_ACC(p)=ACC(column(1),column(1),p);
+    best_DEV(p)=DEV(row(1),column(1),p);
+end
+for i=1:5
+    for j=1:5
+       meanACC(i,j)=sum(ACC(i,j,:))./5; 
+       meanDEV(i,j)=sum(DEV(i,j,:))./5;
+    end
+end
+max_meanACC=max(meanACC(:)); 
+min_dev_5=min(meanDEV(meanACC>0.99*max_meanACC));
+[row_5, column_5]=find((meanDEV==min_dev_5) & (meanACC>0.99*max_meanACC));
+best_5_gamma=gamma(column_5); 
+best_5_C=C(row_5); 
+best_5_ACC=ACC(row_5,column_5); 
+best_5_DEV=DEV(row_5,column_5); 
+mean_cvaccuracy=meanACC(row_5, column_5); 
+mean_cvstddev=meanDEV(row_5, column_5); 
+cmd = ['-t 1 -c ', num2str(best_5_C), ' -g ', num2str(best_5_gamma)]; 
+M3= svmtrain(label_train, feature_train, cmd); 
+[~,c,~]=svmpredict(label_test,feature_test,M3);
+a
+b
+c
