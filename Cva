@@ -1,0 +1,18 @@
+Funtions used : functions in Prtools5 and libsvm-3.24
+cva:
+function [accuracy,Average]=cva(feature_train, label_train, cmd)
+cv=cvpartition(label_train, 'KFold', 10);
+accuracy = zeros(cv.NumTestSets,1);
+for i = 1:cv.NumTestSets 
+    trainIdx = cv.training(i); 
+    testIdx = cv.test(i); 
+    dtr=feature_train(trainIdx,:); 
+    dv=feature_train(testIdx,:); 
+    dtr_label=double(label_train(trainIdx)); 
+    dv_label=double(label_train(testIdx)); 
+    model=svmtrain(dtr_label, dtr, cmd); 
+    [~, a, ~]=svmpredict(dv_label,dv,model);
+    accuracy(i) = a(1,1);
+end
+Average=sum(accuracy)./10;
+end
